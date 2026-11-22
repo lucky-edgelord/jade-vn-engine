@@ -1,0 +1,3 @@
+name = "vn-engine RPG demo"
+libs = "rpg, minigames"
+source_code_url = "https://github.com/lucky-edgelord/jade-vn-engine"

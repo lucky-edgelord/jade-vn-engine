@@ -38,7 +38,7 @@ def toml(path):
     return d
 
 
-CDN = 'https://cdn.jsdelivr.net/gh/lucky-edgelord/vn-engine@{ref}/engine/'
+CDN = 'https://cdn.jsdelivr.net/gh/lucky-edgelord/jade-vn-engine@{ref}/engine/'
 
 
 def build(game, outdir=None, xdc=None, cdn=None):
@@ -50,7 +50,12 @@ def build(game, outdir=None, xdc=None, cdn=None):
         shutil.rmtree(outdir)
     os.makedirs(outdir)
     scripts = sorted(os.path.join(dp, f) for dp, _, fs in os.walk(game) for f in fs if f.endswith('.rpy'))
-    g = vnc.compile_files([os.path.join(ROOT, 'engine', 'stdlib.rpy')] + scripts)
+    libs = [x.strip() for x in meta.get('libs', '').split(',') if x.strip()]
+    libfiles = [os.path.join(ROOT, 'engine', 'lib', l + '.rpy') for l in libs]
+    for f in libfiles:
+        if not os.path.exists(f):
+            raise vnc.CompileError(f'unknown lib {os.path.basename(f)[:-4]!r} in game.toml (have: {", ".join(sorted(x[:-4] for x in os.listdir(os.path.join(ROOT, "engine", "lib"))))})')
+    g = vnc.compile_files([os.path.join(ROOT, 'engine', 'stdlib.rpy')] + libfiles + scripts)
     with open(os.path.join(outdir, 'game.json'), 'w', encoding='utf-8') as f:
         json.dump(g, f, ensure_ascii=False, separators=(',', ':'))
     if not cdn:

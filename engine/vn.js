@@ -12,6 +12,47 @@ const ENGINE = new URL('./', import.meta.url).href;
 const mods = {};
 function lazy(name) { return mods[name] || (mods[name] = import(ENGINE + name + '.js').catch((e) => { console.warn('vn: could not load ' + name, e); mods[name] = null; return null; })); }
 let lightMod = null;
+// interactive widgets: displayable kind -> lazy module. A module exports create(env, kind) -> instance with
+// draw(g, spec, x, y, w, h, t, dt), and optional pointer(type, x, y) / key(type, key) returning true when handled.
+const WIDGETS = { tilemap: 'tiles', mapview: 'tiles', tour: 'tour' };
+const widgetMods = {}, widgetInst = {};
+let widgetHits = [], kbWidget = null;
+const dataCache = {};
+function widgetEnv(inst) {
+  return {
+    W: () => W, H: () => H, now,
+    // read game data registered with register_data() (maps, tours) once and cache it
+    data(name) { if (!(name in dataCache)) { const r = JSON.parse(PY._eval(`_DATA.get(${JSON.stringify(name)})`)); dataCache[name] = r.ok ? r.v : null; } return dataCache[name]; },
+    image: (src) => (typeof src === 'string' && atlas[src.split(':')[0]] ? null : fileImg(src)),
+    sprite: (name) => spriteOf(name), sheets: () => sheets,
+    drawDisp: (d, x, y, w, h) => drawDisp(d, x, y, w, h),
+    light: () => lightMod || (lazy('light').then((m) => { lightMod = m; }), null),
+    // send an event to the game: sets _widget_event, writes `state` back into the named store dict, runs the action
+    emit(evt) {
+      const sp = inst.spec || {};
+      const lit = (v) => `json.loads(${JSON.stringify(JSON.stringify(v))})`;
+      const name = JSON.stringify(sp.state_name || '');
+      const st = evt.state ? `\nif ${name} in globals() and isinstance(globals()[${name}], dict): globals()[${name}].update(${lit(evt.state)})` : '';
+      pyCall('_exec', `_widget_event = ${lit(evt)}${st}`);
+      if (evt.quiet) { dirty = true; return; }
+      runAction(inst.action);
+    },
+    redraw() { dirty = true; },
+    sound: (n) => play('sound', n, {}),
+  };
+}
+function drawWidget(d, x, y, w, h, action) {
+  const name = WIDGETS[d.k];
+  if (!widgetMods[name]) { widgetMods[name] = 'loading'; lazy(name).then((m) => { widgetMods[name] = m; dirty = true; }); }
+  const m = widgetMods[name];
+  if (!m || m === 'loading') { g.fillStyle = '#000'; g.fillRect(x, y, w, h); return null; }
+  const id = d.k + ':' + (d.id || '');
+  let inst = widgetInst[id];
+  if (!inst) { inst = widgetInst[id] = { kind: d.k }; inst.obj = m.create(widgetEnv(inst), d.k); }
+  inst.spec = d; inst.action = action; inst.r = [x, y, w, h];
+  const t = now(); inst.obj.draw(g, d, x, y, w, h, t, Math.min(0.1, t - (inst.last || t))); inst.last = t;
+  return inst;
+}
 
 const VN = (window.VN = window.VN || {});
 VN.VERSION = VERSION; VN.ENGINE = ENGINE;
@@ -497,7 +538,7 @@ function dispSize(d, box) {
     if (/\.\w+$/.test(d) || d.startsWith('data:')) { const i = fileImg(d); return i ? [i.naturalWidth, i.naturalHeight] : [0, 0]; }
     return [0, 0];
   }
-  if (d.k === 'solid' || d.k === 'grad' || d.k === 'radial' || d.k === 'lightmap') return d.xysize || [box ? box[2] : W, box ? box[3] : H];
+  if (d.k === 'solid' || d.k === 'grad' || d.k === 'radial' || d.k === 'lightmap' || WIDGETS[d.k]) return d.xysize || [box ? box[2] : W, box ? box[3] : H];
   if (d.k === 'img') { const i = fileImg(d.src); return i ? [i.naturalWidth, i.naturalHeight] : [0, 0]; }
   if (d.k === 'xf') { const s = dispSize(d.child, box); return [s[0] * (d.zoom || 1), s[1] * (d.zoom || 1)]; }
   if (d.k === 'atl') { const P = {}; atlRun(G.transforms[d.atl] || [], now() - T0, P); return dispSize(P.__child, box); }
@@ -749,7 +790,7 @@ function measure(n, pw, ph) {
 }
 function textOf(n) { return n.v == null ? '' : String(n.v); }
 function drawScreens(under) {
-  if (under) { clickables = []; keys = []; clickables.modalAt = null; }
+  if (under) { clickables = []; keys = []; clickables.modalAt = null; widgetHits = []; }
   for (const s of orderedScreens()) {
     if (((scrInfo[s.name] || {}).layer === 'master') !== !!under) continue;
     if (hideUI && s.kind !== 'menu' && s.kind !== 'call') continue;
@@ -793,6 +834,9 @@ function drawNode(n, box, scr) {
     const isWhat = n.id === 'what' && say && scr.kind === 'say';
     drawText(L, X + pl + (w - pl - pr - L.w) * (st.align || 0), Y + pt, isWhat ? say.shown : 1e9, st);
     if (isWhat && say.done && !say.menu && n.ctc !== false) { const last = L.lines[L.lines.length - 1]; const lx = last.length ? last[last.length - 1].x + last[last.length - 1].w : 0; g.fillStyle = cssColor(gui('accent')); g.font = `${st.size}px sans-serif`; g.fillText('♥', X + pl + lx + 10, Y + pt + (L.lines.length - 1) * L.lh + st.size + Math.sin(now() * 5) * 3); }
+  } else if ((k === 'add' || k === 'image') && n.img && WIDGETS[n.img.k]) {
+    const inst = drawWidget(n.img, X, Y, w, h, n.action);
+    if (inst && (inst.obj.pointer || inst.obj.key)) { widgetHits.push(inst); clickables.push({ key: nk, r: [X, Y, w, h], widget: inst, sens: true }); }
   } else if (k === 'add' || k === 'image') {
     const PP = Object.assign({}, P || {}, { xpos: 0, ypos: 0, xanchor: 0, yanchor: 0, xoffset: 0, yoffset: 0, alpha: null });
     if (n.zoom != null) PP.zoom = n.zoom; if (n.tint) PP.tint = n.tint;
@@ -816,7 +860,7 @@ function drawNode(n, box, scr) {
     else for (const c of n.c) drawNode(c, inner, scr);
   }
   g.restore();
-  if ((isBtn || n.action != null && n.action >= 0 && k !== 'key' && k !== 'timer' && k !== 'dragbar') && k !== 'text') {
+  if ((isBtn || n.action != null && n.action >= 0 && k !== 'key' && k !== 'timer' && k !== 'dragbar' && !(n.img && WIDGETS[n.img.k])) && k !== 'text') {
     let r = [X, Y, w, h]; if (k === 'hotspot' && n.area) r = [bx + n.area[0], by + n.area[1], n.area[2], n.area[3]];
     clickables.push({ key: nk, r, a: n.action, sens, hovered: n.hovered, unhovered: n.unhovered, alt: n.alternate, mouse: k === 'mousearea', tooltip: n.tooltip, n });
   }
@@ -889,11 +933,13 @@ function input() {
     if (hideUI) { hideUI = false; return; }
     const c = hit(x, y);
     press = { x, y, sx: x, sy: y, c, t: now(), moved: false };
+    if (c && c.widget && c.widget.obj.pointer) { press.widget = c.widget; c.widget.obj.pointer('down', x - c.r[0], y - c.r[1]); return; }
     if (c && c.drag) { const st = drags[c.key] = { x0: x, max: x, t0: now(), r: c.r, n: c.drag, ok: x <= c.r[0] + c.r[2] * 0.15 }; press.drag = st; }
     if (c && c.vp) { press.vp = c.vp; press.vx = c.vp.x; press.vy = c.vp.y; }
   });
   out.addEventListener('pointermove', (e) => {
     const [x, y] = toCanvas(e); mouse = [x, y];
+    if (press && press.widget) { const r = press.widget.r; press.widget.obj.pointer && press.widget.obj.pointer('move', x - r[0], y - r[1]); return; }
     if (press) {
       if (Math.abs(x - press.sx) + Math.abs(y - press.sy) > 10) press.moved = true;
       if (press.drag) press.drag.max = Math.max(press.drag.max, x);
@@ -913,6 +959,7 @@ function input() {
   });
   out.addEventListener('pointerup', (e) => {
     const [x, y] = toCanvas(e); const p = press; press = null; if (!p) return;
+    if (p.widget) { const r = p.widget.r; p.widget.obj.pointer && p.widget.obj.pointer('up', x - r[0], y - r[1]); return; }
     if (p.drag) { finishDrag(p.drag); return; }
     if (p.vp && p.vp.dragging) { p.vp.dragging = false; syncViewport(p.vp); return; }
     const c = hit(x, y);
@@ -932,6 +979,7 @@ function input() {
     unlockAudio();
     const k = e.key;
     for (const b of [...keys].reverse()) { if (keyMatch(b.key, e)) { e.preventDefault(); runAction(b.a); return; } }
+    const wtop = topWidget(); if (wtop && wtop.obj.key && wtop.obj.key('down', k)) { e.preventDefault(); return; }
     if (k === ' ' || k === 'Enter') { e.preventDefault(); if (!modalUp()) advance(); }
     else if (k === 'Control') skip = true;
     else if (k === 'Escape') { if (VM.ctx === 'game' && scrInfo.game_menu) { const m = screens.find((s) => s.kind === 'menu'); if (m) hideScreen(m.name); else command(['show_menu', 'game_menu']); } }
@@ -939,7 +987,12 @@ function input() {
     else if (k === 'PageUp' || k === 'ArrowUp' && e.altKey) rollback();
     else if (k === 'a' || k === 'A') auto = !auto;
   });
-  addEventListener('keyup', (e) => { if (e.key === 'Control') skip = false; });
+  addEventListener('keyup', (e) => { if (e.key === 'Control') skip = false; const w = topWidget(); if (w && w.obj.key) w.obj.key('up', e.key); });
+}
+function topWidget() {
+  // the last widget drawn that isn't covered by a modal screen above it
+  for (let i = clickables.length - 1; i >= 0; i--) { if (clickables.modalAt != null && i < clickables.modalAt) return null; const c = clickables[i]; if (c && c.widget && c.widget.obj.key) return c.widget; }
+  return null;
 }
 function modalUp() { return screens.some((s) => s.kind !== 'say' && scrInfo[s.name] && scrInfo[s.name].modal); }
 function keyMatch(spec, e) {
@@ -1075,3 +1128,4 @@ VN.skip = (v, all) => { skip = v; if (all) prefs.skip_unseen = true; };
 VN.advance = advance;
 VN.refresh = () => { dirty = true; };
 VN.rollback = rollback;
+VN.widgets = () => widgetInst;

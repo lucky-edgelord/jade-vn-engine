@@ -329,6 +329,89 @@ class LightMap(Displayable):
         self.occluders = [list(o) + [0] * (5 - len(o)) for o in occluders]
 
 
+_DATA = {}          # big, mostly static game data (maps, tours) the JS widgets fetch once by name
+_widget_event = None
+
+
+def register_data(name, value):
+    _DATA[name] = _plain(value)
+
+
+class TileMap(Displayable):
+    """Top-down tile scroller (engine/tiles.js).
+    TileMap(map="town", state="pos", tileset=Tileset(...), player=CharSheet(...), npcs=[...], tile=48, speed=5, light=None)
+    `map` names data from register_data(); `state` names a store dict {"x", "y", "face", "rev"} the widget reads and
+    writes back on every step (bump "rev" to teleport). Events reach the screen's action as _widget_event:
+    {"type": "step"|"interact"|"bump", "x", "y", "tile", "npc"}."""
+
+    def __init__(self, map, state="pos", tileset=None, player=None, npcs=(), tile=48, speed=5.0, light=None, id=None, frozen=False):
+        self.k = 'tilemap'
+        self.id = id or map
+        self.map, self.state_name, self.st = map, state, _plain(_store.get(state))
+        self.tileset, self.player, self.tile, self.speed, self.frozen = _plain(tileset), _plain(player), tile, speed, frozen
+        self.npcs = [_plain(n) for n in npcs]
+        self.light = _plain(light)
+
+
+class MapView(Displayable):
+    """Map mode: the whole map (or a window of it) drawn small, with the player and markers.
+    MapView(map="world", state="pos", markers=[{"x", "y", "label", "color"}], radius=None) - radius makes a minimap."""
+
+    def __init__(self, map, state="pos", markers=(), radius=None, id=None, colors=None):
+        self.k = 'mapview'
+        self.id = id or ("mv:" + map)
+        self.map, self.state_name, self.st = map, state, _plain(_store.get(state))
+        self.markers, self.radius, self.colors = _plain(list(markers)), radius, _plain(colors)
+
+
+class Tour(Displayable):
+    """Faux-3D interiors from snapshots, like an online real-estate tour (engine/tour.js).
+    Tour(tour="house", state="tour_pos") - data from register_data("house", {"start": "hall", "nodes": {...}}).
+    A node: {"src": "hall.jpg", "kind": "pano" (360 equirectangular) | "flat", "fov": 80, "yaw": 0,
+             "hotspots": [{"yaw": 30, "pitch": -20, "to": "kitchen", "label": "Kitchen", "face": 90},
+                          {"yaw": 140, "pitch": 0, "kind": "info", "id": "photo", "label": "Old photo"}]}
+    Flat nodes place hotspots with "x"/"y" (0..1 across the photo) instead of yaw/pitch.
+    Events: {"type": "arrive", "node"} and {"type": "hotspot", "id", "node"}."""
+
+    def __init__(self, tour, state="tour_pos", id=None):
+        self.k = 'tour'
+        self.id = id or tour
+        self.tour, self.state_name, self.st = tour, state, _plain(_store.get(state))
+
+
+def Tileset(src, size=16, cols=8):
+    """A tile sheet: tile i is at column i % cols, row i // cols. src: an image file or an atlas sprite name."""
+    return {'src': src, 'size': size, 'cols': cols}
+
+
+def CharSheet(src, size=16, cols=3, rows=("down", "left", "right", "up"), frames=None, row=0, scale=None):
+    """A walking-character sheet: one row per direction, `cols` frames per row (middle frame = standing)."""
+    return {'src': src, 'size': size, 'cols': cols, 'rows': list(rows), 'frames': frames or cols, 'row0': row, 'scale': scale}
+
+
+def map_from_rows(rows, legend, solid="", colors=None, layers=1):
+    """Build map data from strings: legend maps a character to a tile index (or a list, one per layer).
+    solid: characters you can't walk through. colors: char -> map-mode colour."""
+    h, w = len(rows), max(len(r) for r in rows)
+    L = [[0] * (w * h) for _ in range(layers)]
+    sol = [0] * (w * h)
+    chars = []
+    for y, r in enumerate(rows):
+        for x in range(w):
+            ch = r[x] if x < len(r) else ' '
+            v = legend.get(ch, 0)
+            vs = v if isinstance(v, (list, tuple)) else [v]
+            for li in range(layers):
+                L[li][y * w + x] = vs[li] if li < len(vs) else -1
+            sol[y * w + x] = 1 if ch in solid else 0
+            chars.append(ch)
+    col = {}
+    if colors:
+        for k, v in colors.items():
+            col[k] = v
+    return {'w': w, 'h': h, 'layers': L, 'solid': sol, 'chars': ''.join(chars), 'colors': col}
+
+
 class Gradient(Displayable):
     """Vertical or horizontal gradient: Gradient(((0,'#0000'),(1,'#000c')), xysize=(1280,260))."""
 
