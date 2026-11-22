@@ -98,18 +98,20 @@ const EFFECTS = {
       c += tb * (rnd(u * res + t) - 0.5) * 0.35 + hs * (rnd(u * res - t) - 0.3) * 0.6;
       c = mix(c, c * vec3(1.02, 0.98, 1.05) + 0.02, 0.6);
       gl_FragColor = vec4(mix(texture2D(tex, uv).rgb, c, amt), 1.0); }`, { amount: 1, p: [0.6, 0, 1.2, 1] }, 1],
-  crt: [`void main(){ vec2 c = uv * 2.0 - 1.0; c *= 1.0 + p.x * dot(c.yx, c.yx) * vec2(0.12, 0.16) ;
+  // p = [curvature, aperture mask, scanline depth, flicker]; q.x = scanline count (default 240, a real TV's visible lines)
+  crt: [`void main(){ vec2 c = uv * 2.0 - 1.0; c *= 1.0 + p.x * dot(c.yx, c.yx) * vec2(0.03, 0.045);
       vec2 u = c * 0.5 + 0.5;
       if (u.x < 0.0 || u.x > 1.0 || u.y < 0.0 || u.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
       vec3 col = texture2D(tex, u).rgb;
       vec3 bl = (texture2D(tex, u + vec2(2.0, 0.0) / res).rgb + texture2D(tex, u - vec2(2.0, 0.0) / res).rgb + texture2D(tex, u + vec2(0.0, 2.0) / res).rgb + texture2D(tex, u - vec2(0.0, 2.0) / res).rgb) * 0.25;
       col += max(bl - 0.6, 0.0) * 0.6;                               // phosphor bloom
-      float sl = 0.5 + 0.5 * cos(u.y * res.y * 3.14159); col *= 1.0 - p.z * (1.0 - sl);            // scanlines
-      float m = mod(floor(u.x * res.x), 3.0); vec3 mask = m < 1.0 ? vec3(1.0, 0.7, 0.7) : m < 2.0 ? vec3(0.7, 1.0, 0.7) : vec3(0.7, 0.7, 1.0);
+      float lines = q.x > 0.0 ? q.x : 240.0;                         // scanlines: soft beam profile, brightness kept up
+      float sl = pow(0.5 + 0.5 * cos(u.y * lines * 6.28318), 1.6); col *= mix(1.0, 0.35 + 0.95 * sl, p.z);
+      float m = mod(floor(u.x * res.x / 1.5), 3.0); vec3 mask = m < 1.0 ? vec3(1.0, 0.7, 0.7) : m < 2.0 ? vec3(0.7, 1.0, 0.7) : vec3(0.7, 0.7, 1.0);
       col *= mix(vec3(1.0), mask, p.y);                              // aperture grille
       float v = u.x * u.y * (1.0 - u.x) * (1.0 - u.y); col *= pow(16.0 * v, 0.25);   // tube vignette
       col *= 1.0 - p.w * 0.04 * rnd(vec2(floor(time * 30.0), 1.0)); // flicker
-      gl_FragColor = vec4(mix(texture2D(tex, uv).rgb, col * 1.12, amt), 1.0); }`, { amount: 1, p: [1, 0.35, 0.35, 1] }, 1],
+      gl_FragColor = vec4(mix(texture2D(tex, uv).rgb, col * 1.08, amt), 1.0); }`, { amount: 1, p: [1, 0.25, 0.55, 1], q: [240, 0, 0, 0] }, 1],
   static: [`void main(){ vec4 c = texture2D(tex, uv); float n = rnd(floor(uv * res / max(1.0, p.x)) + fract(time * 7.13) * 99.0);
       float roll = smoothstep(0.0, 0.15, fract(uv.y + time * 0.5)) * 0.2 + 0.8;
       gl_FragColor = vec4(mix(c.rgb, vec3(n) * roll, amt), 1.0); }`, { amount: 0.15, p: [2, 0, 0, 0] }, 1],
