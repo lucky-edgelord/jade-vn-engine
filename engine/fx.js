@@ -98,6 +98,30 @@ const EFFECTS = {
       c += tb * (rnd(u * res + t) - 0.5) * 0.35 + hs * (rnd(u * res - t) - 0.3) * 0.6;
       c = mix(c, c * vec3(1.02, 0.98, 1.05) + 0.02, 0.6);
       gl_FragColor = vec4(mix(texture2D(tex, uv).rgb, c, amt), 1.0); }`, { amount: 1, p: [0.6, 0, 1.2, 1] }, 1],
+  // Vectoria's VHS look (aio-marketplace/sources/vectoria/code/video.py), ported from its ffmpeg chain:
+  // gblur -> chromashift(crh=+c, cbh=-c) -> rgbashift(rh=-s, bh=+s) -> hard scanline mask -> vignette(PI/5)
+  // -> eq(contrast 1.08, saturation 1.18, brightness .01); moving: a 5% tracking band drifting down and
+  // swinging sideways, plus temporal noise. Sizes scale with screen height like hers scale with frame size.
+  // p = [strength 0..2, scanline period px (0 = auto), band on/off, noise scale]
+  vectoria: [`vec3 yuv(vec3 c){ return vec3(dot(c, vec3(0.299, 0.587, 0.114)), dot(c, vec3(-0.169, -0.331, 0.5)), dot(c, vec3(0.5, -0.419, -0.081))); }
+    vec3 rgbOf(vec3 y){ return vec3(y.x + 1.402 * y.z, y.x - 0.344 * y.y - 0.714 * y.z, y.x + 1.772 * y.y); }
+    vec3 soft(vec2 u, float sg){ vec2 d = vec2(sg, 0.0) / res, e = vec2(0.0, sg) / res;
+      return (texture2D(tex, u).rgb * 4.0 + texture2D(tex, u + d).rgb + texture2D(tex, u - d).rgb + texture2D(tex, u + e).rgb + texture2D(tex, u - e).rgb) / 8.0; }
+    vec3 bled(vec2 u, float sg, float ch){ vec2 o = vec2(ch / res.x, 0.0);
+      return rgbOf(vec3(yuv(soft(u, sg)).x, yuv(soft(u + o, sg)).y, yuv(soft(u - o, sg)).z)); }
+    void main(){ float s = clamp(p.x, 0.0, 2.0), S = res.y; vec2 u = uv; float y = (1.0 - uv.y) * S;
+      float band = S * 0.05, top = clamp(mod(time * S * 0.27, S + band) - band, 0.0, S - band);
+      if (p.z > 0.5 && y >= top && y < top + band) u.x -= (S / 70.0 * s * sin(time * 37.0)) / res.x;
+      float sg = 0.5 + 0.5 * min(s, 1.5), ch = max(1.0, floor(S / 128.0 * s + 0.5)), sh = max(1.0, floor(S / 170.0 * s + 0.5));
+      vec2 o = vec2(sh / res.x, 0.0);
+      vec3 c = vec3(bled(u + o, sg, ch).r, bled(u, sg, ch).g, bled(u - o, sg, ch).b);
+      float period = p.y > 0.0 ? p.y : max(4.0, floor(S / 85.0 + 0.5)), thick = max(2.0, floor(period / 2.0 + 0.5));
+      if (mod(y, period) < thick) c *= 1.0 - 0.32 * min(s, 1.5);
+      vec2 d = (uv - 0.5) * vec2(res.x / res.y, 1.0); float dn = length(d) / length(vec2(res.x / res.y, 1.0) * 0.5);
+      c *= pow(cos(min(dn * 0.6283, 1.5707)), 4.0);
+      c = (c - 0.5) * 1.08 + 0.5 + 0.01; c = mix(vec3(lum(c)), c, 1.18);
+      c += (rnd(uv * res + fract(time * 13.0) * 97.0) - 0.5) * 2.0 * 9.0 * s * (p.w > 0.0 ? p.w : 1.0) / 255.0;
+      gl_FragColor = vec4(mix(texture2D(tex, uv).rgb, clamp(c, 0.0, 1.0), amt), 1.0); }`, { amount: 1, p: [1, 0, 1, 1] }, 1],
   // p = [curvature, aperture mask, scanline depth, flicker]; q.x = scanline count (default 240, a real TV's visible lines)
   crt: [`void main(){ vec2 c = uv * 2.0 - 1.0; c *= 1.0 + p.x * dot(c.yx, c.yx) * vec2(0.03, 0.045);
       vec2 u = c * 0.5 + 0.5;
@@ -156,7 +180,7 @@ const EFFECTS = {
 };
 const ORDER = ['pixelate', 'fisheye', 'wave', 'badtv', 'jitter', 'glitch', 'tear', 'rgbshift', 'chroma', 'melt', 'echo', 'grade', 'lut', 'huesat', 'tint',
   'nightvision', 'thermal', 'posterize', 'halftone', 'dither', 'invert', 'mirror', 'glow', 'vhs', 'interference', 'static', 'creep', 'pulse', 'flicker',
-  'scanlines', 'grain', 'vignette', 'crt'];
+  'vectoria', 'scanlines', 'grain', 'vignette', 'crt'];
 const PREV = new Set(['melt', 'echo']);
 // grade presets: p = [mulR, mulG, mulB, sepia], q = [contrast, brightness, saturation, fade], co = [liftR, liftG, liftB, vignette]
 export const GRADES = {
