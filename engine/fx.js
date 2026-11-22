@@ -102,7 +102,7 @@ const EFFECTS = {
   // gblur -> chromashift(crh=+c, cbh=-c) -> rgbashift(rh=-s, bh=+s) -> hard scanline mask -> vignette(PI/5)
   // -> eq(contrast 1.08, saturation 1.18, brightness .01); moving: a 5% tracking band drifting down and
   // swinging sideways, plus temporal noise. Sizes scale with screen height like hers scale with frame size.
-  // p = [strength 0..2, scanlines per screen height (0 = 48), band on/off, noise scale]; q = [scanline darkness 0..1]
+  // p = [strength 0..2, scanlines per screen height (0 = 48), band on/off, noise scale]; q = [scanline darkness 0..1, colour fringe width (default 0.3)]
   vectoria: [`vec3 yuv(vec3 c){ return vec3(dot(c, vec3(0.299, 0.587, 0.114)), dot(c, vec3(-0.169, -0.331, 0.5)), dot(c, vec3(0.5, -0.419, -0.081))); }
     vec3 rgbOf(vec3 y){ return vec3(y.x + 1.402 * y.z, y.x - 0.344 * y.y - 0.714 * y.z, y.x + 1.772 * y.y); }
     vec3 soft(vec2 u, float sg){ vec2 d = vec2(sg, 0.0) / res, e = vec2(0.0, sg) / res;
@@ -112,7 +112,8 @@ const EFFECTS = {
     void main(){ float s = clamp(p.x, 0.0, 2.0), S = res.y; vec2 u = uv; float y = (1.0 - uv.y) * S;
       float band = S * 0.05, top = clamp(mod(time * S * 0.27, S + band) - band, 0.0, S - band);
       if (p.z > 0.5 && y >= top && y < top + band) u.x -= (S / 70.0 * s * sin(time * 37.0)) / res.x;
-      float sg = 0.5 + 0.5 * min(s, 1.5), ch = max(1.0, floor(S / 128.0 * s + 0.5)), sh = max(1.0, floor(S / 170.0 * s + 0.5));
+      float fr = q.y > 0.0 ? q.y : 0.3;                                // q.y = colour fringe width (1 = Vectoria's own, default 0.3)
+      float sg = 0.5 + 0.5 * min(s, 1.5), ch = S / 128.0 * s * fr, sh = S / 170.0 * s * fr;
       vec2 o = vec2(sh / res.x, 0.0);
       vec3 c = vec3(bled(u + o, sg, ch).r, bled(u, sg, ch).g, bled(u - o, sg, ch).b);
       // lines: p.y > 0 is a line count per screen height; default 48, which on a phone looks like her video blown up
