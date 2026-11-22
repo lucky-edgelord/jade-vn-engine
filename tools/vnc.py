@@ -659,7 +659,7 @@ class Compiler:
         if not m:
             raise l.err('bad screen reference')
         args = m.group(3)
-        return m.group(1), (f'dict({args})' if args else None), p.get('with')
+        return m.group(1), (f'_args({args})' if args else None), p.get('with')
 
     def image_spec(self, rest, l, kw):
         has_atl = rest.endswith(':')

@@ -9,8 +9,11 @@ tools/build.py    package a game folder as a static site + .xdc
 engine/vn.js      runtime core: VM, renderer, layout, text tags, audio, saves, rollback, history, skip/auto
 engine/prelude.py the Python side: store, Character, actions, displayables, transitions, screens
 engine/stdlib.rpy default screens (say, choice, menus, save/load, history, preferences) - override any
-engine/fx.js      lazy: WebGL post effects (glitch, rgbshift, badtv, melt, halftone, dither, ...)
+engine/fx.js      lazy: WebGL post effects - vhs, crt, static, interference, glitch, rgbshift, badtv, echo,
+                  nightvision, thermal, pulse, creep, flicker, melt, halftone, dither, colour grades
+                  (Instagram-style and horror presets) and 3D LUT strips
 engine/light.js   lazy: 2D lighting - darkness, flickering coloured lights, ray-cast shadows, dust
+engine/analog.js  lazy: generated tape hiss, 60/50 Hz mains hum, CRT flyback whine, motor rumble
 engine/vendor/    MicroPython WebAssembly build (MIT, see MICROPYTHON-LICENSE)
 ```
 

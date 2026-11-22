@@ -88,8 +88,8 @@ class _Renpy:
     def restart_interaction(self):
         _cmd('refresh')
 
-    def show_screen(self, name, **kw):
-        _screen_args[name] = kw
+    def show_screen(self, name, *a, **kw):
+        _screen_args[name] = _args(*a, **kw)
         _cmd('show_screen', name)
 
     def hide_screen(self, name):
@@ -110,6 +110,13 @@ class _Renpy:
 
     def fx_off(self, name=None):
         _cmd('fx_off', name)
+
+    def analog(self, hiss=0.02, hum=0.012, whine=0.003, rumble=0.0, hz=60, fade=0.6):
+        """Generated analog bed: tape hiss, mains hum (hz=60 or 50) with harmonics, CRT flyback whine, motor rumble."""
+        _cmd('analog', {'hiss': hiss, 'hum': hum, 'whine': whine, 'rumble': rumble, 'hz': hz, 'fade': fade})
+
+    def analog_off(self):
+        _cmd('analog', False)
 
     def pause(self, t):
         raise _Ctl('pause', t)
@@ -786,6 +793,13 @@ def _screen_info():
     return _js({k: v[1] for k, v in _SCREENS.items()})
 
 
+def _args(*a, **kw):
+    """Arguments of `show screen x(...)` / `call screen x(...)`, positional ones kept in order."""
+    if a:
+        kw['__pos'] = list(a)
+    return kw
+
+
 def _set_screen_args(name, args_json):
     _screen_args[name] = _revive(json.loads(args_json)) if args_json else {}
 
@@ -808,7 +822,9 @@ def _render(names_json):
         _cur_scope = sc
         _cur_screen_name = n
         try:
-            out[n] = _SCREENS[n][0](sc, **_screen_args.get(n, {}))
+            kw = dict(_screen_args.get(n, {}))
+            pos = kw.pop('__pos', [])
+            out[n] = _SCREENS[n][0](sc, *pos, **kw)
         except Exception as e:
             out[n] = [{'k': 'text', 'v': 'screen %s: %s' % (n, e), 'color': '#f44', 'size': 20}]
     _cur_scope = None
@@ -905,6 +921,9 @@ def _config_json():
 
 
 _return = None
+_skipping = False
+on_rollback = None
+on_skip = None
 _last_say_who = None
 
 

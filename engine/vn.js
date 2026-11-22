@@ -61,6 +61,7 @@ function command(c) {
   else if (op === 'flash') startTrans({ k: 'fade', o: 0.05, h: 0, i: a[1], color: a[0] }, false);
   else if (op === 'fx') withFX((f) => f.set(a[0], a[1] || {}));
   else if (op === 'fx_off') { if (fx) fx.off(a[0]); }
+  else if (op === 'analog') { analogWant = a[0]; applyAnalog(); }
   else if (op === 'save') saveSlot(a[0]);
   else if (op === 'load') loadSlot(a[0]);
   else if (op === 'delete_save') { localStorage.removeItem(KEY('slot:' + a[0])); dirty = true; }
@@ -171,6 +172,9 @@ function fileImg(p) {
 }
 
 // ------------------------------------------------------------------ main menu / start
+// call a store function if the game defines one (on_rollback, on_skip, ...)
+function hook(name, arg) { try { const r = JSON.parse(pyCall('_exec', `if '${name}' in globals() and ${name}: ${name}(${arg === undefined ? '' : JSON.stringify(arg)})`)); control(r); } catch (e) { console.warn(e); } dirty = true; }
+let lastSkip = false;
 function mainMenu() {
   VM.running = false; VM.wait = null; VM.ctx = 'menu'; VM.stack = []; say = null; snaps = []; cur = null;
   layers.master = []; screens = []; stopAll(); dirty = true;
@@ -300,7 +304,7 @@ function restore(s) {
 function rollback() {
   if (VM.ctx !== 'game' || snaps.length < 2) return;
   snaps.pop(); const s = snaps.pop(); PY._history_pop(); PY._history_pop();
-  skip = false; restore(s); run();
+  skip = false; restore(s); hook('on_rollback'); run();
 }
 function saveSlot(slot) {
   if (!cur) return;
@@ -969,12 +973,23 @@ function unlockAudio() {
   if (!actx) {
     const A = window.AudioContext || window.webkitAudioContext; if (!A) return; actx = new A();
     for (const m of ['music', 'sfx', 'voice']) { const gn = actx.createGain(); gn.connect(actx.destination); mixGains[m] = gn; }
-    mixers();
+    mixers(); setTimeout(applyAnalog, 0);
     if (VN._audioBase !== undefined && Object.keys(aidx).length) xhr(VN._audioBase + (aidx.__bin || 'audio.bin'), 'arraybuffer').then((b) => { abuf = b; VN.audioBytes = b.byteLength; for (const c in pendingPlay) { const p = pendingPlay[c]; delete pendingPlay[c]; play(c, p[0], p[1]); } });
   }
   if (actx.state === 'suspended') actx.resume();
 }
 const pendingPlay = {};
+// generated tape/CRT background noise (analog.js), applied once audio is unlocked
+let analog = null, analogWant = null, analogLoading = false;
+function applyAnalog() {
+  if (!actx || analogWant == null) return;
+  if (!analog) {
+    if (analogLoading) return; analogLoading = true;
+    lazy('analog').then((m) => { if (m) { analog = m.create(actx, mixGains.sfx); applyAnalog(); } });
+    return;
+  }
+  if (analogWant === false) analog.off(); else analog.set(analogWant);
+}
 function mixers() { if (!actx) return; for (const m in mixGains) mixGains[m].gain.value = prefs[m] ?? 1; }
 function decode(name) {
   if (decoded.has(name)) return decoded.get(name);
@@ -1016,7 +1031,7 @@ function stop(ch, o = {}) {
   const f = o.fadeout || 0;
   try { if (f && actx) { p.gain.gain.setValueAtTime(p.gain.gain.value, actx.currentTime); p.gain.gain.linearRampToValueAtTime(0, actx.currentTime + f); p.src.stop(actx.currentTime + f); } else p.src.stop(); } catch (e) {}
 }
-function stopAll() { for (const c of Object.keys(playing)) stop(c); }
+function stopAll() { for (const c of Object.keys(playing)) stop(c); if (analog) analog.off(); analogWant = null; }
 function musicState() { const o = {}; for (const c in playing) if (playing[c].loop) o[c] = playing[c].file; return o; }
 function restoreMusic(m) { for (const c of Object.keys(playing)) if (playing[c].loop && m[c] !== playing[c].file) stop(c, { fadeout: 0.3 }); for (const c in m) if (!playing[c] || playing[c].file !== m[c]) play(c, m[c], { loop: true }); }
 VN.audio = () => ({ playing: Object.fromEntries(Object.entries(playing).map(([k, v]) => [k, v.file])), bytes: VN.audioBytes });
@@ -1025,6 +1040,7 @@ VN.audio = () => ({ playing: Object.fromEntries(Object.entries(playing).map(([k,
 function frame() {
   requestAnimationFrame(frame);
   const t = now(), dt = Math.min(0.1, t - lastFrame); lastFrame = t;
+  if (skip !== lastSkip && PY._exec) { lastSkip = skip; pyCall('_exec', `_skipping = ${skip ? 'True' : 'False'}`); hook('on_skip', skip); }
   // waits
   const w = VM.wait;
   if (w) {
@@ -1049,8 +1065,9 @@ function frame() {
   if (notify && notify.m) { g.font = '22px sans-serif'; const tw = g.measureText(notify.m).width; g.fillStyle = 'rgba(0,0,0,.7)'; g.fillRect(20, 20, tw + 30, 42); g.fillStyle = '#fff'; g.fillText(notify.m, 35, 48); }
   drawTrans();
   g.setTransform(1, 0, 0, 1, 0, 0);
-  if (fx && fxCanvas && prefs.fx !== false && fx.busy()) { if (fxCanvas.style.display === 'none') { fxCanvas.style.display = ''; out.style.visibility = 'hidden'; } fx.render(t); }
-  else { if (fxCanvas && fxCanvas.style.display !== 'none') { fxCanvas.style.display = 'none'; out.style.visibility = ''; } out.__ctx2d.drawImage(cv, 0, 0); }
+  // the WebGL canvas sits on top of the 2D one (which keeps receiving input) while an effect runs
+  if (fx && fxCanvas && prefs.fx !== false && fx.busy()) { if (fxCanvas.style.display === 'none') fxCanvas.style.display = ''; fx.render(t); }
+  else { if (fxCanvas && fxCanvas.style.display !== 'none') fxCanvas.style.display = 'none'; out.__ctx2d.drawImage(cv, 0, 0); }
   // drop timers whose nodes disappeared
   for (const k in timers) { if (!timers[k].seen) delete timers[k]; else timers[k].seen = false; }
 }
