@@ -17,6 +17,9 @@ engine/light.js   lazy: 2D lighting - darkness, flickering coloured lights, ray-
 engine/tiles.js   lazy: TileMap - top-down grid scroller (smooth steps, 4-way sprites, NPCs, tap-to-walk,
                   wall-shadowed lighting); MapView - map mode / minimap
 engine/tour.js    lazy: Tour - faux-3D interiors from 360° or flat snapshots, real-estate-tour style
+engine/live2d.js  lazy: Live2D (Cubism 4/5) - WebGL renderer on the Cubism Core: masks, blend modes, motions,
+                  blink, breathing, look-at, voice lip-sync, expressions, poses (no physics yet). The Core is
+                  Live2D's licensed runtime: put live2dcubismcore.min.js in your game folder, it is not bundled
 engine/lib/rpg.rpy        opt-in: party, items, spells, Phantasy Star-style first-person battles
 engine/lib/minigames.rpy  opt-in: qte, mash, lockpick timing, keypad, memory, sliding puzzle, simon
 engine/analog.js  lazy: generated tape hiss, 60/50 Hz mains hum, CRT flyback whine, motor rumble
@@ -76,7 +79,16 @@ label safe:
     call screen minigame
 ```
 
-`games/rpg-demo` uses all of them with generated art.
+`games/rpg-demo` uses all of them with generated art. `games/jade-vault` walks Jade through Vault Loci's painted
+vault (image maps: `map_from_rects`, tall sprites: `FrameSheet`) and has a Live2D scene
+(`sh games/jade-vault/tools/fetch_live2d.sh` downloads the Cubism Core and Live2D's Hiyori sample under their licences).
+
+```renpy
+image hiyori = Live2D("hiyori/Hiyori.model3.json", id="hiyori", motion="Idle", look="mouse")
+label call:
+    show hiyori at truecenter with dissolve
+    $ live2d("hiyori", motion="Idle", index=3)
+```
 
 ## Building
 

@@ -110,6 +110,7 @@ function tileMap(env) {
   }
   function drawChar(g, sheet, x, y, face, walk, moving, T) {
     if (!sheet) { g.fillStyle = '#f6c'; g.fillRect(x + T * 0.2, y + T * 0.1, T * 0.6, T * 0.85); return; }
+    if (sheet.fw) return drawFrames(g, sheet, x, y, face, walk, moving, T);
     const src = source(env, sheet.src); if (!src) return;
     const sz = sheet.size, row = (sheet.row0 || 0) + Math.max(0, (sheet.rows || ['down', 'left', 'right', 'up']).indexOf(face));
     const cols = sheet.cols || 3, cyc = cols >= 3 ? [0, 1, 2, 1] : cols === 2 ? [0, 1] : [0];
@@ -117,6 +118,23 @@ function tileMap(env) {
     const sc = (sheet.scale || T / sz);
     const dw = sz * sc, dh = sz * sc;
     g.drawImage(src.img, src.x + fr * sz * src.sx, src.y + row * sz * src.sy, sz * src.sx, sz * src.sy, x + (T - dw) / 2, y + T - dh, dw, dh);
+  }
+  // tall, non-square frames (e.g. 181x278): sheet.idle / sheet.walk map a direction to [row, col, mirrored]
+  function drawFrames(g, sh, x, y, face, walk, moving, T) {
+    const src = source(env, sh.src); if (!src) return;
+    const k = T / (map.cell || T), h = (sh.height || sh.fh) * k, w = (sh.fw * h) / sh.fh;
+    const pick = (tbl, d) => { const v = (tbl || {})[d] ?? (tbl || {}).down ?? 0; return Array.isArray(v) ? v : [v, 0, 0]; };
+    let row, col, flip;
+    if (moving) { [row, , flip] = pick(sh.walk, face); col = Math.floor((walk / ((spec && spec.speed) || 5)) * (sh.fps || 8)) % (sh.cols || 4); }
+    else { [row, col, flip] = pick(sh.idle, face); if (sh.blink && face === 'down') { const ph = (performance.now() / 1000) % 3.6; col = ph > 3.4 ? sh.blink : col; } }
+    const cx = x + T / 2, fy = y + T * 0.75;
+    g.save();
+    if (sh.shadow !== false) { g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(cx, fy, w * 0.26, w * 0.09, 0, 0, 7); g.fill(); }
+    g.translate(cx, fy); if (flip) g.scale(-1, 1);
+    if (sh.glow) { g.shadowColor = sh.glow; g.shadowBlur = 10; }
+    g.imageSmoothingEnabled = true;
+    g.drawImage(src.img, src.x + col * sh.fw * src.sx, src.y + row * sh.fh * src.sy, sh.fw * src.sx, sh.fh * src.sy, -w / 2, -h, w, h);
+    g.restore();
   }
   return {
     draw(g, sp, X, Y, Wd, Hd, t, dt) {
@@ -142,6 +160,7 @@ function tileMap(env) {
           else { g.fillStyle = `hsl(${(v * 47) % 360},40%,40%)`; g.fillRect(dx, dy, T, T); }
         }
       };
+      if (map.image) { const bi = source(env, map.image); if (bi) { g.imageSmoothingEnabled = true; g.drawImage(bi.img, bi.x, bi.y, bi.img.naturalWidth || bi.img.width, bi.img.naturalHeight || bi.img.height, X - cx, Y - cy, (map.iw || mw) * (T / (map.cell || T)), (map.ih || mh) * (T / (map.cell || T))); g.imageSmoothingEnabled = false; } }
       map.layers.forEach((_, li) => { if (!top.has(li)) tile(li); });
       // characters, back to front
       const ents = Object.values(S.npcs).map((n) => ({ y: n.y, f: () => drawChar(g, n.sprite, X + n.x * T - cx, Y + n.y * T - cy, n.face, n.walk, n.x !== n.tx || n.y !== n.ty, T) }));
@@ -158,7 +177,9 @@ function tileMap(env) {
           const lights = (Lsp.lights || []).map((l) => Object.assign({}, l, { x: (l.x + 0.5) * T, y: (l.y + 0.5) * T, radius: (l.radius || 4) * T }));
           if (Lsp.player) lights.push(Object.assign({ color: '#ffd9a0', cut: 1, tint: 0.2, flicker: 0.05, id: 'player' }, Lsp.player, { x: (S.px + 0.5) * T, y: (S.py + 0.5) * T, radius: (Lsp.player.radius || 4) * T }));
           const occ = [];
-          if (lights.some((l) => l.shadows)) for (let ty = y0; ty < y1; ty++) { let run = -1; for (let tx = x0; tx <= x1; tx++) { const s2 = tx < x1 && map.solid[ty * map.w + tx] && !(map.see || []).includes(map.chars[ty * map.w + tx]); if (s2 && run < 0) run = tx; if (!s2 && run >= 0) { occ.push([run * T, ty * T, tx * T, (ty + 1) * T, T * 0.35]); run = -1; } } }
+          const kk = T / (map.cell || T);
+          if (map.occ) for (const o of map.occ) occ.push([o[0] * kk, o[1] * kk, o[2] * kk, o[3] * kk, (o[4] || 0) * kk]);
+          else if (lights.some((l) => l.shadows)) for (let ty = y0; ty < y1; ty++) { let run = -1; for (let tx = x0; tx <= x1; tx++) { const s2 = tx < x1 && map.solid[ty * map.w + tx] && !(map.see || []).includes(map.chars[ty * map.w + tx]); if (s2 && run < 0) run = tx; if (!s2 && run >= 0) { occ.push([run * T, ty * T, tx * T, (ty + 1) * T, T * 0.35]); run = -1; } } }
           lm.drawLightMap(g, { ambient: Lsp.ambient || '#000', dark: Lsp.dark ?? 0.85, blur: Lsp.blur ?? 6, lights, occluders: occ }, X - cx, Y - cy, mw, mh, t, env.W(), env.H());
         }
       }
@@ -216,7 +237,9 @@ function mapView(env) {
       const s = Math.min(Wd / sw, Hd / sh), ox = X + (Wd - sw * s) / 2, oy = Y + (Hd - sh * s) / 2;
       g.save(); g.beginPath(); g.rect(ox, oy, sw * s, sh * s); g.clip(); g.imageSmoothingEnabled = false;
       g.fillStyle = '#000'; g.fillRect(ox, oy, sw * s, sh * s);
-      g.drawImage(c, ox - sx * s, oy - sy * s, map.w * s, map.h * s);
+      const bi = map.image && source(env, map.image);
+      if (bi) { g.imageSmoothingEnabled = true; g.drawImage(bi.img, bi.x, bi.y, bi.img.naturalWidth || bi.img.width, bi.img.naturalHeight || bi.img.height, ox - sx * s, oy - sy * s, (map.iw / map.cell) * s, (map.ih / map.cell) * s); }
+      else g.drawImage(c, ox - sx * s, oy - sy * s, map.w * s, map.h * s);
       const at = (x, y) => [ox + (x - sx + 0.5) * s, oy + (y - sy + 0.5) * s];
       g.font = `${Math.max(12, Math.min(20, s * 1.4))}px sans-serif`; g.textAlign = 'center';
       for (const m of sp.markers || []) {

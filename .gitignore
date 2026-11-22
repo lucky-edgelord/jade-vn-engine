@@ -12,3 +12,7 @@ games/sucker-for-love/icon.png
 # Sucker for Love port: kept local for now (scripts built around the original game)
 games/sucker-for-love/
 tests/test_sfl.py
+
+# Live2D runtime and sample model: fetched by games/jade-vault/tools/fetch_live2d.sh (Live2D licences)
+games/*/assets/live2dcubismcore.min.js
+games/*/assets/hiyori/

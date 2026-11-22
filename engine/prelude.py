@@ -379,6 +379,32 @@ class Tour(Displayable):
         self.tour, self.state_name, self.st = tour, state, _plain(_store.get(state))
 
 
+class Live2D(Displayable):
+    """A Live2D (Cubism 4/5) model: Live2D("hiyori/Hiyori.model3.json", id="hiyori", motion="Idle", look="mouse").
+    motion: the idle motion group; expression: an exp3 name; look: "mouse", (x, y) in -1..1, or None;
+    lipsync: move the mouth with the voice channel; zoom / xoffset / yoffset: framing inside its box.
+    Use it as an image (image hiyori = Live2D(...); show hiyori at center) or in a screen.
+    Needs live2dcubismcore.min.js in the game folder (config.live2d_core to change where)."""
+
+    def __init__(self, model, id=None, motion="Idle", index=None, expression=None, look="mouse", lipsync=True, zoom=1.0, xoffset=0, yoffset=0, xysize=None):
+        self.k = 'live2d'
+        self.model, self.id, self.motion, self.index, self.expression = model, id or model, motion, index, expression
+        self.look, self.lipsync, self.zoom, self.xoffset, self.yoffset, self.xysize = _plain(look), lipsync, zoom, xoffset, yoffset, xysize
+        self.core = getattr(config, 'live2d_core', 'live2dcubismcore.min.js')
+
+
+def live2d(id, motion=None, index=None, expression=False, idle=False):
+    """Drive a shown Live2D model: live2d("hiyori", motion="TapBody"), live2d("hiyori", expression="smile")."""
+    o = {}
+    if motion:
+        o['motion'] = motion
+        o['index'] = index
+        o['idle'] = idle
+    if expression is not False:
+        o['expression'] = expression
+    _cmd('widget', 'live2d:' + id, o)
+
+
 def Tileset(src, size=16, cols=8):
     """A tile sheet: tile i is at column i % cols, row i // cols. src: an image file or an atlas sprite name."""
     return {'src': src, 'size': size, 'cols': cols}
@@ -387,6 +413,39 @@ def Tileset(src, size=16, cols=8):
 def CharSheet(src, size=16, cols=3, rows=("down", "left", "right", "up"), frames=None, row=0, scale=None):
     """A walking-character sheet: one row per direction, `cols` frames per row (middle frame = standing)."""
     return {'src': src, 'size': size, 'cols': cols, 'rows': list(rows), 'frames': frames or cols, 'row0': row, 'scale': scale}
+
+
+def FrameSheet(src, fw, fh, cols=4, idle=None, walk=None, height=None, fps=8, blink=None, glow=None, shadow=True):
+    """A character sheet with tall frames. idle / walk: direction -> row, or [row, col, mirrored].
+    e.g. Jade (Vault Loci): FrameSheet("jade.webp", 181, 278, idle={"down": [0, 0], "up": [2, 0], "right": [3, 0], "left": [3, 0, 1]},
+                                       walk={"down": 1, "up": 2, "right": 3, "left": [3, 0, 1]}, height=150, blink=2)"""
+    return {'src': src, 'fw': fw, 'fh': fh, 'cols': cols, 'idle': idle or {}, 'walk': walk or {}, 'height': height or fh,
+            'fps': fps, 'blink': blink, 'glow': glow, 'shadow': shadow}
+
+
+def map_from_rects(image, iw, ih, cell=24, walk=(), block=(), occ=None, foot=(22, 10)):
+    """A walk grid over a painted map (like Vault Loci): a cell is walkable when the character's footprint around its
+    centre is inside a `walk` rect and clear of every `block` rect. Rects are (x0, y0, x1, y1) in image pixels."""
+    w, h = iw // cell, ih // cell
+    fw, fh = foot
+    sol = [1] * (w * h)
+    chars = []
+
+    def inr(r, x, y):
+        return r[0] <= x <= r[2] and r[1] <= y <= r[3]
+    for y in range(h):
+        for x in range(w):
+            px, py = x * cell + cell / 2, y * cell + cell / 2
+            ok = all(any(inr(r, qx, qy) for r in walk) for qx in (px - fw, px + fw) for qy in (py - fh, py + fh))
+            if ok:
+                for b in block:
+                    if px + fw > b[0] and px - fw < b[2] and py + fh > b[1] and py - fh < b[3]:
+                        ok = False
+                        break
+            sol[y * w + x] = 0 if ok else 1
+            chars.append('.' if ok else '#')
+    return {'w': w, 'h': h, 'cell': cell, 'iw': iw, 'ih': ih, 'image': image, 'layers': [], 'solid': sol,
+            'chars': ''.join(chars), 'colors': {'.': '#2c3a33', '#': '#0d1210'}, 'occ': [list(o) for o in (occ or [])]}
 
 
 def map_from_rows(rows, legend, solid="", colors=None, layers=1):

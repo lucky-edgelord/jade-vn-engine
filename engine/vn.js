@@ -14,10 +14,12 @@ function lazy(name) { return mods[name] || (mods[name] = import(ENGINE + name + 
 let lightMod = null;
 // interactive widgets: displayable kind -> lazy module. A module exports create(env, kind) -> instance with
 // draw(g, spec, x, y, w, h, t, dt), and optional pointer(type, x, y) / key(type, key) returning true when handled.
-const WIDGETS = { tilemap: 'tiles', mapview: 'tiles', tour: 'tour' };
+const WIDGETS = { tilemap: 'tiles', mapview: 'tiles', tour: 'tour', live2d: 'live2d' };
 const widgetMods = {}, widgetInst = {};
 let widgetHits = [], kbWidget = null;
 const dataCache = {};
+let voiceAn = null, voiceBuf = null;
+const pendingWidget = {};
 function widgetEnv(inst) {
   return {
     W: () => W, H: () => H, now,
@@ -38,6 +40,12 @@ function widgetEnv(inst) {
       runAction(inst.action);
     },
     redraw() { dirty = true; },
+    mouse: () => mouse,
+    voiceLevel() {   // 0..1 loudness of the voice channel, for lip-sync
+      if (!actx || !mixGains.voice) return 0;
+      if (!voiceAn) { voiceAn = actx.createAnalyser(); voiceAn.fftSize = 512; mixGains.voice.connect(voiceAn); voiceBuf = new Float32Array(voiceAn.fftSize); }
+      voiceAn.getFloatTimeDomainData(voiceBuf); let s2 = 0; for (const x of voiceBuf) s2 += x * x; return Math.sqrt(s2 / voiceBuf.length);
+    },
     sound: (n) => play('sound', n, {}),
   };
 }
@@ -48,7 +56,7 @@ function drawWidget(d, x, y, w, h, action) {
   if (!m || m === 'loading') { g.fillStyle = '#000'; g.fillRect(x, y, w, h); return null; }
   const id = d.k + ':' + (d.id || '');
   let inst = widgetInst[id];
-  if (!inst) { inst = widgetInst[id] = { kind: d.k }; inst.obj = m.create(widgetEnv(inst), d.k); }
+  if (!inst) { inst = widgetInst[id] = { kind: d.k }; inst.obj = m.create(widgetEnv(inst), d.k); for (const o of pendingWidget[id] || []) inst.obj.command && inst.obj.command(o); delete pendingWidget[id]; }
   inst.spec = d; inst.action = action; inst.r = [x, y, w, h];
   const t = now(); inst.obj.draw(g, d, x, y, w, h, t, Math.min(0.1, t - (inst.last || t))); inst.last = t;
   return inst;
@@ -103,6 +111,7 @@ function command(c) {
   else if (op === 'fx') withFX((f) => f.set(a[0], a[1] || {}));
   else if (op === 'fx_off') { if (fx) fx.off(a[0]); }
   else if (op === 'analog') { analogWant = a[0]; applyAnalog(); }
+  else if (op === 'widget') { const w = widgetInst[a[0]]; if (w && w.obj.command) w.obj.command(a[1] || {}); else (pendingWidget[a[0]] = pendingWidget[a[0]] || []).push(a[1] || {}); }
   else if (op === 'save') saveSlot(a[0]);
   else if (op === 'load') loadSlot(a[0]);
   else if (op === 'delete_save') { localStorage.removeItem(KEY('slot:' + a[0])); dirty = true; }
@@ -565,6 +574,7 @@ function drawDisp(d, x, y, w, h, t0) {
     for (const [o, c] of d.stops) gr.addColorStop(o, cssColor(c)); g.fillStyle = gr; g.fillRect(x, y, w, h); return;
   }
   if (d.k === 'img') { const i = fileImg(d.src); if (i) g.drawImage(i, x, y, w, h); return; }
+  if (WIDGETS[d.k]) { drawWidget(d, x, y, w, h, null); return; }
   if (d.k === 'lightmap') {
     if (!lightMod) { lazy('light').then((m) => { lightMod = m; dirty = true; }); g.fillStyle = cssColor(d.ambient || '#000'); g.globalAlpha *= d.dark ?? 0.7; g.fillRect(x, y, w, h); g.globalAlpha = 1; return; }
     const m = g.getTransform(); lightMod.drawLightMap(g, d, m.e + x, m.f + y, w, h, now(), W, H); return;
