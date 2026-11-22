@@ -102,7 +102,7 @@ const EFFECTS = {
   // gblur -> chromashift(crh=+c, cbh=-c) -> rgbashift(rh=-s, bh=+s) -> hard scanline mask -> vignette(PI/5)
   // -> eq(contrast 1.08, saturation 1.18, brightness .01); moving: a 5% tracking band drifting down and
   // swinging sideways, plus temporal noise. Sizes scale with screen height like hers scale with frame size.
-  // p = [strength 0..2, scanlines per screen height (0 = 48), band on/off, noise scale]
+  // p = [strength 0..2, scanlines per screen height (0 = 48), band on/off, noise scale]; q = [scanline darkness 0..1]
   vectoria: [`vec3 yuv(vec3 c){ return vec3(dot(c, vec3(0.299, 0.587, 0.114)), dot(c, vec3(-0.169, -0.331, 0.5)), dot(c, vec3(0.5, -0.419, -0.081))); }
     vec3 rgbOf(vec3 y){ return vec3(y.x + 1.402 * y.z, y.x - 0.344 * y.y - 0.714 * y.z, y.x + 1.772 * y.y); }
     vec3 soft(vec2 u, float sg){ vec2 d = vec2(sg, 0.0) / res, e = vec2(0.0, sg) / res;
@@ -119,7 +119,7 @@ const EFFECTS = {
       float lines = p.y > 0.0 ? p.y : 48.0, period = S / lines, thick = period * 0.5;
       float ph = mod(y, period); float edge = 0.6;                   // hard band, 1px anti-aliased edges
       float band2 = smoothstep(thick - edge, thick + edge, ph) * (1.0 - smoothstep(period - edge, period, ph));
-      c *= 1.0 - 0.36 * min(s, 1.5) * (1.0 - band2);
+      c *= 1.0 - (q.x > 0.0 ? q.x : 0.18) * min(s, 1.5) * (1.0 - band2);   // q.x = scanline darkness (default 0.18)
       vec2 d = (uv - 0.5) * vec2(res.x / res.y, 1.0); float dn = length(d) / length(vec2(res.x / res.y, 1.0) * 0.5);
       c *= pow(cos(min(dn * 0.6283, 1.5707)), 4.0);
       c = (c - 0.5) * 1.08 + 0.5 + 0.01; c = mix(vec3(lum(c)), c, 1.18);
