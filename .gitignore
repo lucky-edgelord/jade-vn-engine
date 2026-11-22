@@ -1,0 +1,14 @@
+build/
+dist/
+__pycache__/
+*.pyc
+# Sucker for Love: generated from your own copy of the game (copyrighted art, audio and text)
+games/sucker-for-love/assets/*
+!games/sucker-for-love/assets/fonts/
+games/sucker-for-love/dialogue.rpy
+games/sucker-for-love/room_data.rpy
+games/sucker-for-love/icon.png
+
+# Sucker for Love port: kept local for now (scripts built around the original game)
+games/sucker-for-love/
+tests/test_sfl.py
