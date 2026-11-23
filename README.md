@@ -90,6 +90,22 @@ label call:
     $ live2d("hiyori", motion="Idle", index=3)
 ```
 
+## Gallery
+
+Everything below is captured from the sample games by [`tools/docshots.py`](tools/docshots.py) (headless Chrome).
+
+| | |
+|---|---|
+| ![Dialogue and menus](docs/img/demo-say.png)<br>**Dialogue**: text tags, choices, the default screens | ![Tile scroller](docs/img/rpg-world.png)<br>**TileMap**: top-down scroller, NPCs, minimap (`rpg-demo`) |
+| ![Walking](docs/img/rpg-walk.gif)<br>**Walking**: smooth steps, 4-way sprites, tap-to-walk | ![Battle](docs/img/rpg-battle.gif)<br>**Battles**: Phantasy Star-style, party, spells, items |
+| ![Map mode](docs/img/rpg-map.png)<br>**MapView**: full map on `M` | ![Cave lighting](docs/img/rpg-cave-light.jpg)<br>**Lighting**: wall-shadowed lights (`light.js`) |
+| ![Tour](docs/img/tour-look.gif)<br>**Tour**: faux-3D rooms from snapshots, drag to look | ![Keypad](docs/img/minigame-keypad.png)<br>**Minigames**: keypad, lockpick, memory, simon... |
+| ![Vault](docs/img/vault-walk.gif)<br>**Image maps**: walking Jade through Vault Loci | ![Lights](docs/img/vault-lights.gif)<br>**Light levels**: black, dim, lit (`L`) |
+| ![Live2D](docs/img/live2d.jpg)<br>**Live2D**: Cubism 4/5 on WebGL, look-at and lip-sync | ![VHS](docs/img/fx-vhs.jpg)<br>**Post effects**: `vhs`, `crt`, `glitch`, colour grades (`fx.js`) |
+
+Regenerate: `python3 tools/build.py games/<name>` for `demo`, `rpg-demo` and `jade-vault`, then `python3 tools/docshots.py`
+(needs Playwright and ffmpeg). Full walkthrough with scripts: [docs/modes.md](docs/modes.md).
+
 ## Building
 
 ```
