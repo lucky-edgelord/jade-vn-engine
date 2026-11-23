@@ -84,7 +84,7 @@ export function create(env) {
       model = Live2DCubismCore.Model.fromMoc(moc);
       const ci = model.canvasinfo, scale = Math.min(1, 2048 / Math.max(ci.CanvasWidth, ci.CanvasHeight));
       initGL(Math.round(ci.CanvasWidth * scale), Math.round(ci.CanvasHeight * scale));
-      const imgs = await Promise.all(R.Textures.map((t) => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('texture ' + t)); i.src = base + t; })));
+      const imgs = await Promise.all(R.Textures.map((t) => new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = () => no(new Error('texture ' + t)); i.src = base + t; })));
       tex = imgs.map((im) => {
         const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, im);
