@@ -112,10 +112,17 @@ screen vault_map():
     key "M" action Hide("vault_map")
     key "K_ESCAPE" action Hide("vault_map")
 
+image vault_view = "vault.webp"
+transform vault_dim:
+    zoom 0.497
+    alpha 0.45
+
 label start:
-    scene black
+    scene vault_view at vault_dim with dissolve
+    show jade live2d at truecenter with dissolve
     jade "Welcome to the vault. Eleven places to keep what matters - walk me around and we'll find them."
     jade "WASD, arrows or a tap on the floor. Stand near a place and press Enter, or tap me."
+    hide jade live2d with dissolve
     jump explore
 
 label explore:
