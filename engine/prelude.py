@@ -380,10 +380,10 @@ class Tour(Displayable):
 
 
 class Live2D(Displayable):
-    """A Live2D (Cubism 4/5) model: Live2D("hiyori/Hiyori.model3.json", id="hiyori", motion="Idle", look="mouse").
+    """A Live2D (Cubism 4/5) model: Live2D("jade-live2d/jadecat.model3.json", id="jade", motion=None, look="mouse").
     motion: the idle motion group; expression: an exp3 name; look: "mouse", (x, y) in -1..1, or None;
     lipsync: move the mouth with the voice channel; zoom / xoffset / yoffset: framing inside its box.
-    Use it as an image (image hiyori = Live2D(...); show hiyori at center) or in a screen.
+    Use it as an image (image jade live2d = Live2D(...); show jade live2d at center) or in a screen.
     Needs live2dcubismcore.min.js in the game folder (config.live2d_core to change where)."""
 
     def __init__(self, model, id=None, motion="Idle", index=None, expression=None, look="mouse", lipsync=True, zoom=1.0, xoffset=0, yoffset=0, xysize=None):
@@ -394,7 +394,7 @@ class Live2D(Displayable):
 
 
 def live2d(id, motion=None, index=None, expression=False, idle=False):
-    """Drive a shown Live2D model: live2d("hiyori", motion="TapBody"), live2d("hiyori", expression="smile")."""
+    """Drive a shown Live2D model: live2d("jade", motion="TapBody"), live2d("jade", expression="smile")."""
     o = {}
     if motion:
         o['motion'] = motion
