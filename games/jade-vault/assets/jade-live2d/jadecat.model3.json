@@ -1,0 +1,1 @@
+{"Version":3,"FileReferences":{"Moc":"jadecat.moc3","Textures":["jade.webp"],"Physics":"jadecat.physics3.json","DisplayInfo":"jadecat.cdi3.json"},"Groups":[{"Target":"Parameter","Name":"EyeBlink","Ids":["ParamEyeLOpen","ParamEyeROpen"]},{"Target":"Parameter","Name":"LipSync","Ids":["ParamMouthOpenY"]}]}

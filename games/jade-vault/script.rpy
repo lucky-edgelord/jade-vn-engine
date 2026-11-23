@@ -1,6 +1,6 @@
 # Jade's Vault - a jade-vn-engine test game built from jade-vault's Vault Loci assets.
 # Walk Jade through the vault (D-pad / WASD / tap), discover the eleven loci, light presets like Loci's
-# (L to cycle), map mode (M), a Live2D guest at the Comms Desk, a keypad on the Core Vault, VHS mode (V).
+# (L to cycle), map mode (M), Jade herself in Live2D at the Comms Desk, a keypad on the Core Vault, VHS mode (V).
 
 define config.name = "Jade's Vault"
 define config.fonts = {"Silk": [{"src": "fonts/silkscreen-latin-400-normal.woff2"}, {"src": "fonts/silkscreen-latin-700-normal.woff2", "weight": "700"}], "Mono": [{"src": "fonts/jetbrains-mono-latin-400-normal.woff2"}, {"src": "fonts/jetbrains-mono-latin-600-normal.woff2", "weight": "600"}]}
@@ -13,9 +13,11 @@ define gui.idle_color = "#cfe9dd"
 define MG_STYLE = {"font": "Silk", "accent": "#1f8a5c", "ok": "#3cffaa", "bad": "#ff5a6a", "panel": "#081210ee", "text": "#e6fff4"}
 
 define jade = Character("Jade", who_color="#3cffaa")
-define guest = Character("Hiyori", who_color="#ffb3d1")
 
-image hiyori = Live2D("hiyori/Hiyori.model3.json", id="hiyori", motion="Idle", look="mouse", zoom=1.0)
+# Jade's Live2D model is Jade Vault's own (tools/extract_jade_live2d.py). The Cubism Core runtime is Live2D's: it loads from
+# Live2D's site; for offline play run tools/fetch_live2d.sh and delete the next line.
+define config.live2d_core = "https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"
+image jade live2d = Live2D("jade-live2d/jadecat.model3.json", id="jade", motion=None, look="mouse", zoom=1.0)
 
 default pos = {"x": 54, "y": 53, "face": "up", "rev": 0}
 default found = []
@@ -151,13 +153,12 @@ label core_vault:
     return
 
 label guest_scene:
-    jade "Someone's calling on the Comms Desk. Let's put them on the big screen."
+    jade "The Comms Desk has a big screen. Let me put my other self on it."
     scene black with dissolve
-    show hiyori at truecenter with dissolve
-    guest "Hi! I'm a Live2D model - Cubism 5, drawn live in WebGL. Move your pointer and I'll look at it."
-    $ live2d("hiyori", motion="Idle", index=3)
-    guest "I can play motions on cue, blink, breathe, and move my mouth with a voice line."
-    $ live2d("hiyori", motion="Idle", index=5)
-    guest "That's all from me. Back to the vault!"
-    hide hiyori with dissolve
+    show jade live2d at truecenter with dissolve
+    jade "This is me in Live2D, the same model as in Jade Vault: Cubism, drawn live in WebGL."
+    jade "Move your pointer and I'll look at it. I blink and breathe on my own, and my mouth follows a voice line."
+    $ live2d("jade", expression=None)
+    jade "That's all from the big screen. Back to the vault!"
+    hide jade live2d with dissolve
     return

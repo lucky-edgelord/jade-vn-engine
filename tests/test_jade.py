@@ -22,7 +22,7 @@ try:
     g.ev(f"VN.state.exec('pos.update({{\"x\": {l['s'][0]//24}, \"y\": {l['s'][1]//24}, \"rev\": pos[\"rev\"] + 1}})')"); g.ev('VN.refresh()'); g.wait(600)
     g.key('Enter', 600); print('found', py('found'), g.wait_kind())
     for _ in range(6):
-        if g.ev("VN.state.layers.master.some(x => x.tag === 'hiyori')"): break
+        if g.ev("VN.state.layers.master.some(x => x.tag === 'jade')"): break
         g.key('Enter', 400)
     g.wait(5000); shot('06_live2d'); g.pg.mouse.move(1100, 200); g.wait(1500); shot('07_live2d_look')
     talk(); g.wait(800); g.key('v', 600); shot('08_vhs')

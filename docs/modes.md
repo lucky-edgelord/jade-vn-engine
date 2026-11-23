@@ -93,14 +93,16 @@ walkable map and `FrameSheet` handles tall sprites.
 
 ## Live2D (`live2d.js`)
 
-![Live2D](img/live2d.jpg)
+![Jade in Live2D](img/live2d.jpg)
 
 Cubism 4/5 on WebGL: masks, blend modes, motions, blink, breathing, look-at, voice lip-sync, expressions, poses.
-The Cubism Core is Live2D's licensed runtime and is not bundled: `sh games/jade-vault/tools/fetch_live2d.sh`
-downloads it and the Hiyori sample under their licences.
+Above: Jade, Jade Vault's own model (`games/jade-vault/assets/jade-live2d/`). The Cubism Core is Live2D's licensed runtime
+and is not bundled: point `config.live2d_core` at Live2D's copy, or run `sh games/jade-vault/tools/fetch_live2d.sh` for an
+offline one.
 
 ```renpy
-image hiyori = Live2D("hiyori/Hiyori.model3.json", id="hiyori", motion="Idle", look="mouse")
+define config.live2d_core = "https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"
+image jade live2d = Live2D("jade-live2d/jadecat.model3.json", id="jade", motion=None, look="mouse")
 ```
 
 ## Post effects (`fx.js`)

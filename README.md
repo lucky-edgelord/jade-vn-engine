@@ -80,14 +80,16 @@ label safe:
 ```
 
 `games/rpg-demo` uses all of them with generated art. `games/jade-vault` walks Jade through Vault Loci's painted
-vault (image maps: `map_from_rects`, tall sprites: `FrameSheet`) and has a Live2D scene
-(`sh games/jade-vault/tools/fetch_live2d.sh` downloads the Cubism Core and Live2D's Hiyori sample under their licences).
+vault (image maps: `map_from_rects`, tall sprites: `FrameSheet`) and shows Jade herself in Live2D at the Comms Desk:
+the same model as in Jade Vault (`assets/jade-live2d/`). The Cubism Core runtime is Live2D's and loads from Live2D's site
+(`config.live2d_core`); `sh games/jade-vault/tools/fetch_live2d.sh` downloads it for offline play.
 
 ```renpy
-image hiyori = Live2D("hiyori/Hiyori.model3.json", id="hiyori", motion="Idle", look="mouse")
+define config.live2d_core = "https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"
+image jade live2d = Live2D("jade-live2d/jadecat.model3.json", id="jade", motion=None, look="mouse")
 label call:
-    show hiyori at truecenter with dissolve
-    $ live2d("hiyori", motion="Idle", index=3)
+    show jade live2d at truecenter with dissolve
+    jade "Move your pointer and I'll look at it."
 ```
 
 ## Gallery
